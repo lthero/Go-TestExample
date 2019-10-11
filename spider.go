@@ -21,6 +21,7 @@ const (
 	//LineFeed 换行
 	LineFeed = "\r\n"
 	// 用户信息正则
+	cityRe = `<a href="http://album.zhenai.com/u/[0-9]+" [^>]*>([^<]+)</a>`
 )
 var path = LOGPATH + time.Now().Format(FORMAT) + `\`
 var ageRe =regexp.MustCompile(`<td><span class="label">年龄：</span>([\d]+)岁</td>`)
@@ -34,6 +35,10 @@ type Request struct {
 type ParseResult struct {
 	Requests []Request
 	Items []interface{}
+}
+
+func NilParser([]byte) ParseResult{
+	return ParseResult{}
 }
 
 type Profile struct {
@@ -52,9 +57,7 @@ type Profile struct {
 	Car 		string
 }
 
-func NilParser([]byte) ParseResult{
-	return ParseResult{}
-}
+
 //主函数
 func main(){
 
@@ -122,12 +125,13 @@ func printCityList(contents []byte) ParseResult{
 	result := ParseResult{}
 	for _,m := range content {
 		log.Printf("%s \n",m[2])
-		result.Items = append(result.Items,string(m[2]))
+		result.Items = append(result.Items,"City :"+string(m[2]))
 		result.Requests = append(result.Requests, Request{
 			Url: string(m[1]),
-			ParserFunc: func(c []byte) ParseResult {
-				return ParseProfile(c,string(m[2]))
-			},
+			//ParserFunc: func(c []byte) ParseResult {
+			//	return ParseProfile(c,string(m[2]))
+			//},
+			ParserFunc:parseCity,
 		})
 	}
 	return result
@@ -187,4 +191,19 @@ func extractString (contents []byte, re *regexp.Regexp) string {
 	}else{
 		return ""
 	}
+}
+
+func parseCity(contents []byte) ParseResult{
+	re:=regexp.MustCompile(cityRe)
+	content := re.FindAllSubmatch(contents,-1)
+	result := ParseResult{}
+	for _,m := range content {
+		log.Printf("%s \n",m[2])
+		result.Items = append(result.Items, "User :"+string(m[2]))
+		result.Requests = append(result.Requests, Request{
+			Url: string(m[1]),
+			ParserFunc: NilParser,
+		})
+	}
+	return result
 }
