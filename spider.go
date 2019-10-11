@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 	"io"
+	"strconv"
 )
 
 const (
@@ -19,8 +20,11 @@ const (
 	FORMAT = "20060102"
 	//LineFeed 换行
 	LineFeed = "\r\n"
+	// 用户信息正则
 )
 var path = LOGPATH + time.Now().Format(FORMAT) + `\`
+var ageRe =regexp.MustCompile(`<td><span class="label">年龄：</span>([\d]+)岁</td>`)
+var hunRe =regexp.MustCompile(`<td><span class="label">婚况：</span>([^<]+)</td>`)
 
 type Request struct {
 	Url string
@@ -30,6 +34,22 @@ type Request struct {
 type ParseResult struct {
 	Requests []Request
 	Items []interface{}
+}
+
+type Profile struct {
+	Name 		string
+	Gender 		string
+	Age 		int
+	Height 		int
+	Weight 		int
+	Income 		string
+	Marriage 	string
+	Education 	string
+	Occupation 	string
+	Hukou 		string
+	Xinzuo 		string
+	House		string
+	Car 		string
 }
 
 func NilParser([]byte) ParseResult{
@@ -46,6 +66,7 @@ func main(){
 	})
 }
 
+//运行函数
 func run(seeds ...Request) {
 	CreateDir(path)
 
@@ -67,10 +88,18 @@ func run(seeds ...Request) {
 		ParseResult := r.ParserFunc(body)
 		requests = append(requests,ParseResult.Requests...)
 		for _, item := range ParseResult.Items {
-			//
-			//
-			// adminlog.Printf("%s\n",item)
-			writelog(`spider.log`,item.(string))
+			switch item.(type) {
+
+			case string:
+				writelog(`spider.log`,item.(string))
+				break
+			case int:
+				writelog(`spider.log`, item.(string))
+				break
+			case float64:
+				writelog(`spider.log`, item.(string))
+				break
+			}
 		}
 	}
 }
@@ -92,10 +121,13 @@ func printCityList(contents []byte) ParseResult{
 	content := re.FindAllSubmatch(contents,-1)
 	result := ParseResult{}
 	for _,m := range content {
+		log.Printf("%s \n",m[2])
 		result.Items = append(result.Items,string(m[2]))
 		result.Requests = append(result.Requests, Request{
 			Url: string(m[1]),
-			ParserFunc: NilParser,
+			ParserFunc: func(c []byte) ParseResult {
+				return ParseProfile(c,string(m[2]))
+			},
 		})
 	}
 	return result
@@ -125,9 +157,34 @@ func CreateDir(path string) error {
 	os.Chmod(path, os.ModePerm)
 	return nil
 }
-
 //IsExist  判断文件夹/文件是否存在  存在返回 true
 func IsExist(f string) bool {
 	_, err := os.Stat(f)
 	return err == nil || os.IsExist(err)
+}
+//获取用户具体信息
+func ParseProfile(contents []byte,name string) ParseResult{
+	profile := Profile{}
+	profile.Name = name
+	age,err := strconv.Atoi(string(extractString(contents,ageRe)))
+
+	if err != nil {
+		profile.Age = age
+	}
+	profile.Marriage = extractString(contents,hunRe)
+
+	result := ParseResult{
+		Items:[]interface{}{profile},
+	}
+	return result
+}
+
+func extractString (contents []byte, re *regexp.Regexp) string {
+	match := re.FindSubmatch(contents)
+
+	if len(match) >=2 {
+		return string(match[1])
+	}else{
+		return ""
+	}
 }
